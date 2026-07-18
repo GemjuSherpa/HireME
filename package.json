@@ -14,6 +14,8 @@
     "test": "vitest run",
     "test:watch": "vitest",
     "test:e2e": "playwright test",
+    "test:e2e:integration": "playwright test e2e/auth-flow.spec.ts",
+    "test:e2e:cloud": "playwright test e2e/cloud-smoke.spec.ts --project=chromium",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:migrate:deploy": "prisma migrate deploy",
