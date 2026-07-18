@@ -80,11 +80,13 @@ The broader manual/integration matrix is in [TEST_CASES.md](./TEST_CASES.md).
 
 ## GitHub and Vercel setup
 
-1. Create a GitHub repository, set the default branch to `main`, and push this project.
-2. Import that repository into Vercel and add `DATABASE_URL`, `MATCHING_SERVICE_URL`, and `NEXT_PUBLIC_APP_URL`.
-3. In GitHub, add repository secrets `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID`.
-4. Pull requests and pushes to `main` run CI. A tag such as `v1.0.0` or a manual workflow run deploys production.
-5. Enable Vercel’s Git integration for preview deployments on pull requests. The workflow intentionally reserves production for tagged/manual releases.
+1. Import `GemjuSherpa/HireME` into Vercel and link the local project with `pnpm exec vercel link`.
+2. Configure the application variables listed below in Vercel for Production and Preview.
+3. Create a protected GitHub `production` environment containing `DATABASE_URL`, `VERCEL_TOKEN`, `VERCEL_ORG_ID`, and `VERCEL_PROJECT_ID`.
+4. Pull requests and pushes to `main` run web and Python CI. Successful CI on `main` applies production migrations and deploys the verified commit.
+5. Use Vercel’s Git integration for pull-request previews; the GitHub workflow owns production deployment.
+
+The complete production checklist, migration policy, required secrets and rollback procedure are documented in [docs/DEPLOYMENT.md](./docs/DEPLOYMENT.md).
 
 ## Production safeguards still required
 

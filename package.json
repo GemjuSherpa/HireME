@@ -2,6 +2,7 @@
   "name": "hireme-platform",
   "version": "0.1.0",
   "private": true,
+  "packageManager": "pnpm@11.9.0",
   "scripts": {
     "dev": "tsx scripts/bootstrap-synthetic-candidates.ts && tsx scripts/bootstrap-diverse-workers.ts && next dev",
     "build": "next build",
@@ -15,6 +16,7 @@
     "test:e2e": "playwright test",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
+    "db:migrate:deploy": "prisma migrate deploy",
     "db:seed": "tsx prisma/seed.ts",
     "db:bootstrap-synthetic": "tsx scripts/bootstrap-synthetic-candidates.ts",
     "db:bootstrap-diverse": "tsx scripts/bootstrap-diverse-workers.ts",
@@ -48,6 +50,7 @@
     "prisma": "^6.11.1",
     "tsx": "^4.20.3",
     "typescript": "^5.8.3",
+    "vercel": "56.3.1",
     "vite": "^7.0.0",
     "vitest": "^3.2.4"
   },
