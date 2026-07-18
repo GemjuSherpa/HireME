@@ -1,0 +1,25 @@
+{
+  "model": "LambdaMART",
+  "version": "synthetic-v1",
+  "records": 5000,
+  "train_jobs": 40,
+  "test_jobs": 10,
+  "ndcg_at_100": 0.9858,
+  "features": [
+    "required_skill_coverage",
+    "desirable_skill_coverage",
+    "verified_skill_ratio",
+    "skill_proficiency",
+    "title_similarity",
+    "lexical_bm25",
+    "experience_fit",
+    "education_fit",
+    "work_mode_fit",
+    "location_fit",
+    "work_rights_fit",
+    "salary_fit",
+    "availability_fit",
+    "evidence_completeness"
+  ],
+  "synthetic_only": true
+}

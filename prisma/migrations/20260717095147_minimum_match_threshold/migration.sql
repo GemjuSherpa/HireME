@@ -1,0 +1,2 @@
+-- AlterTable
+ALTER TABLE "Job" ADD COLUMN     "minMatchScore" DOUBLE PRECISION NOT NULL DEFAULT 60;

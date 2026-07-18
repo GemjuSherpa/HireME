@@ -1,0 +1,7 @@
+.next
+node_modules
+matching-service/.venv
+matching-service/artifacts
+matching-service/data
+public/sw.js
+pnpm-lock.yaml
