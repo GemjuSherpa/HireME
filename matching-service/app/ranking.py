@@ -235,10 +235,28 @@ class HybridRanker:
 
     def __init__(self, model_path: str | None = None):
         path = Path(model_path or Path(__file__).parents[1] / "artifacts" / "lambdamart.joblib")
-        self.model = joblib.load(path) if path.exists() else None
+        self.model = self._load_optional_model(path)
         if self.model is not None:
             self.model.set_params(n_jobs=1)
         self.model_version = "lambdamart-synthetic-v1" if self.model else "expert-hybrid-v1"
+
+    @staticmethod
+    def _load_optional_model(path: Path):
+        """Load the trained ranker when its native runtime is available.
+
+        Args:
+            path: Location of the serialized LambdaMART model.
+
+        Returns:
+            The trained model, or ``None`` when the artifact or a native dependency
+            is unavailable. The caller then uses the deterministic expert model.
+        """
+        if not path.exists():
+            return None
+        try:
+            return joblib.load(path)
+        except (ImportError, OSError, ValueError):
+            return None
 
     def predict(self, vector: np.ndarray) -> float:
         weights = np.array(
