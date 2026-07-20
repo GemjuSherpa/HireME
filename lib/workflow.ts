@@ -13,6 +13,12 @@ import { deliverOutboxEmail, shortlistEmail } from "@/lib/email";
 import { rankWithMatchingService } from "@/lib/hybrid-matching";
 import { evaluateCandidateEligibility } from "@/features/matching/domain/candidate-eligibility";
 import { ApplicationError } from "@/shared/errors/application-error";
+import {
+  scoreCognitiveAnswers,
+  inferJobFamily,
+  selectAssessmentQuestions,
+  type AssessmentQuestion,
+} from "@/lib/assessment-question-bank";
 
 /** Launches a draft pipeline after refreshing matches and queues shortlist invitations by rank. */
 export async function launchJob(jobId: string, actorId: string) {
@@ -344,12 +350,14 @@ export async function inviteToStage(
   stageName: string,
   completionDays = 7,
 ) {
+  const questionSet = await createQuestionSet(stageId);
   const stageRun = await prisma.stageRun.upsert({
     where: { applicationId_stageId_attempt: { applicationId, stageId, attempt: 1 } },
     update: {},
     create: {
       applicationId,
       stageId,
+      questionSet,
       status: StageRunStatus.INVITED,
       expiresAt: new Date(Date.now() + completionDays * 86_400_000),
     },
@@ -380,6 +388,53 @@ export async function inviteToStage(
   return stageRun;
 }
 
+/** Returns the immutable question snapshot for a stage run, backfilling legacy runs once. */
+export async function ensureStageRunQuestions(stageRunId: string): Promise<AssessmentQuestion[]> {
+  const run = await prisma.stageRun.findUniqueOrThrow({
+    where: { id: stageRunId },
+    select: { questionSet: true, stageId: true },
+  });
+  const existing = run.questionSet as AssessmentQuestion[];
+  if (Array.isArray(existing) && existing.length > 0) return existing;
+  const questionSet = await createQuestionSet(run.stageId);
+  await prisma.stageRun.update({ where: { id: stageRunId }, data: { questionSet } });
+  return questionSet;
+}
+
+/** Selects questions exclusively from the requested phase bank and its recruiter additions. */
+async function createQuestionSet(stageId: string): Promise<AssessmentQuestion[]> {
+  const stage = await prisma.hiringStage.findUniqueOrThrow({
+    where: { id: stageId },
+    include: {
+      job: {
+        include: {
+          company: true,
+          skills: { include: { skill: true }, orderBy: { weight: "desc" } },
+        },
+      },
+    },
+  });
+  const config = stage.config as { questions?: string[]; sampleSize?: number };
+  return selectAssessmentQuestions(
+    stage.type,
+    {
+      jobTitle: stage.job.title,
+      companyName: stage.job.company.name,
+      primarySkill: stage.job.skills[0]?.skill.name ?? "the role's primary skill",
+      location: stage.job.location ?? "the advertised location",
+      workMode: stage.job.workMode.toLowerCase(),
+      jobFamily: inferJobFamily(
+        stage.job.title,
+        stage.job.skills.map((item) => item.skill.name),
+      ),
+      experienceLevel: stage.job.experienceLevel,
+    },
+    config.questions ?? [],
+    undefined,
+    config.sampleSize,
+  );
+}
+
 /** Evaluates submitted evidence, records the model decision, and advances the workflow. */
 export async function evaluateStageRun(stageRunId: string) {
   const run = await prisma.stageRun.findUniqueOrThrow({
@@ -400,10 +455,25 @@ export async function evaluateStageRun(stageRunId: string) {
   const numeric = Object.values(answers).filter(
     (value): value is number => typeof value === "number",
   );
-  const score = numeric.length
-    ? numeric.reduce((sum, value) => sum + value, 0) / numeric.length
-    : 75;
-  const confidence = numeric.length >= 3 ? 0.86 : 0.62;
+  const cognitiveResult =
+    run.stage.type === "COGNITIVE_APTITUDE"
+      ? scoreCognitiveAnswers(
+          run.questionSet as AssessmentQuestion[],
+          Object.fromEntries(Object.entries(answers).map(([id, value]) => [id, String(value)])),
+        )
+      : null;
+  const score = cognitiveResult
+    ? cognitiveResult.score
+    : numeric.length
+      ? numeric.reduce((sum, value) => sum + value, 0) / numeric.length
+      : 75;
+  const confidence = cognitiveResult
+    ? cognitiveResult.total >= 10
+      ? 0.86
+      : 0.6
+    : numeric.length >= 3
+      ? 0.86
+      : 0.62;
   const outcome: DecisionOutcome =
     confidence < 0.7
       ? DecisionOutcome.REVIEW
@@ -420,6 +490,7 @@ export async function evaluateStageRun(stageRunId: string) {
       rationale: {
         summary: "Evidence evaluated against the published stage rubric.",
         evidenceCount: numeric.length,
+        cognitive: cognitiveResult,
         threshold: run.stage.passThreshold,
         safeguards: ["No protected attributes used", "Human override available"],
       },

@@ -124,14 +124,13 @@ export default async function JobPipeline({ params }: { params: Promise<{ jobId:
                 <details key={stage.id}>
                   <summary>
                     {stage.position}. {stage.name}
-                    <span>
-                      {config.questions?.length ?? 0} questions · {stage.durationMinutes ?? 0} min
-                    </span>
+                    <span>9–10 randomly selected questions · {stage.durationMinutes ?? 0} min</span>
                   </summary>
                   <ol>
-                    {config.questions?.map((question) => <li key={question}>{question}</li>) ?? (
-                      <li>Legacy stage without configured questions.</li>
-                    )}
+                    <li>Questions are drawn only from the {stage.name} question bank.</li>
+                    {config.questions?.map((question) => (
+                      <li key={question}>Recruiter question: {question}</li>
+                    ))}
                   </ol>
                 </details>
               );

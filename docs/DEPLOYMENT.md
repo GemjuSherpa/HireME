@@ -2,22 +2,33 @@
 
 ## Delivery model
 
-- Pull requests and `main` run both web and Python quality gates in GitHub Actions.
-- Vercel Git integration creates preview deployments for pull requests.
-- A successful CI run on `main` triggers the protected production workflow.
-- Production applies committed Prisma migrations before deploying the verified commit.
+- GitHub Actions owns deployment; Vercel Git auto-deployment is disabled so it cannot bypass tests.
+- Pull requests and `main` run formatting, linting, type checks, unit tests, a production build, Python tests, and database-backed authentication tests.
+- After local gates pass, Actions builds an immutable Vercel preview and runs cloud smoke tests against its URL.
+- Pull requests stop after the tested preview. A `main` build continues to the protected production job only after the cloud tests pass.
+- Production applies committed Prisma migrations before building and deploying the verified commit.
 - Production deployment concurrency is serialised to prevent overlapping releases.
 
 ## GitHub configuration
 
-Create a `production` environment and add these environment secrets:
+Create `preview` and `production` GitHub environments. Add these repository or environment secrets:
 
 - `DATABASE_URL` — pooled or direct production PostgreSQL connection accepted by Prisma Migrate.
 - `VERCEL_TOKEN` — Vercel access token scoped to the account/team that owns the project.
 - `VERCEL_ORG_ID` — value from `.vercel/project.json` after linking.
 - `VERCEL_PROJECT_ID` — value from `.vercel/project.json` after linking.
+- `VERCEL_AUTOMATION_BYPASS_SECRET` — allows the cloud test runner to access protected preview deployments.
 
-Protect `main` and require the `Web quality gates` and `Python matching service` checks. Disable direct force-pushes and require pull requests for subsequent work.
+Protect `main` and require `Web quality and integration tests`, `Python matching-service tests`, and `Test deployed preview in cloud`. Disable direct force-pushes and require pull requests for subsequent work. Add a required reviewer to the GitHub `production` environment when manual release approval is desired.
+
+## Test layers
+
+1. Vitest verifies isolated TypeScript domain and security behaviour.
+2. Pytest verifies scoring, eligibility, and FastAPI contracts.
+3. Playwright API integration tests run the application against an isolated PostgreSQL 16 service container and verify candidate/company registration, session exclusivity, logout, login, validation, and role boundaries.
+4. Cloud smoke tests run against the deployed Vercel preview and verify health, public rendering, PWA metadata, and cron authorization.
+
+Failed Playwright runs upload reports and traces to the GitHub Actions run for 14 days.
 
 ## Vercel environment variables
 

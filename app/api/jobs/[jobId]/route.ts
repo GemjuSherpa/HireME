@@ -21,7 +21,11 @@ export async function PUT(
   const body = (await request.json()) as Record<string, unknown>;
   if (!Array.isArray(body.phases))
     body.phases = job.stages.map((stage) => {
-      const config = stage.config as { templateId?: string; questions?: string[] };
+      const config = stage.config as {
+        templateId?: string;
+        questions?: string[];
+        sampleSize?: number;
+      };
       return {
         templateId: config.templateId ?? stage.id,
         name: stage.name,
@@ -31,6 +35,7 @@ export async function PUT(
         durationMinutes: stage.durationMinutes ?? 30,
         completionDays: stage.completionDays,
         passThreshold: stage.passThreshold,
+        sampleSize: config.sampleSize ?? (stage.type === "COGNITIVE_APTITUDE" ? 15 : 10),
         questions: config.questions?.length
           ? config.questions
           : ["Provide evidence relevant to this assessment stage."],
@@ -117,6 +122,7 @@ export async function PUT(
                 templateId: item.templateId,
                 questions: item.questions,
                 questionCount: item.questions.length,
+                sampleSize: item.sampleSize ?? (item.type === "COGNITIVE_APTITUDE" ? 15 : 10),
                 customised: true,
                 humanApprovalRequired: item.type === "FINAL_REVIEW",
               },

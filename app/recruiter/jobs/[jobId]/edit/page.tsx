@@ -19,7 +19,11 @@ export default async function EditDraft({ params }: { params: Promise<{ jobId: s
     desiredStartDate: job.desiredStartDate?.toISOString().slice(0, 10) ?? "",
     skills: job.skills.map((x) => x.skill.name),
     phases: job.stages.map((stage) => {
-      const config = stage.config as { templateId?: string; questions?: string[] };
+      const config = stage.config as {
+        templateId?: string;
+        questions?: string[];
+        sampleSize?: number;
+      };
       return {
         templateId: config.templateId ?? stage.id,
         name: stage.name,
@@ -28,6 +32,7 @@ export default async function EditDraft({ params }: { params: Promise<{ jobId: s
         durationMinutes: stage.durationMinutes ?? 30,
         completionDays: stage.completionDays,
         passThreshold: stage.passThreshold,
+        sampleSize: config.sampleSize ?? (stage.type === "COGNITIVE_APTITUDE" ? 15 : 10),
         questions: config.questions ?? [],
       };
     }),

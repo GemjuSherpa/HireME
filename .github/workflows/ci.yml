@@ -1,42 +1,63 @@
-name: CI
+name: CI/CD
 
 on:
   pull_request:
   push:
     branches: [main]
+  workflow_dispatch:
 
 concurrency:
-  group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  group: delivery-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/main' }}
 
 permissions:
   contents: read
 
+env:
+  NODE_VERSION: "22"
+  PNPM_VERSION: "11.9.0"
+
 jobs:
-  web:
-    name: Web quality gates
+  web-quality:
+    name: Web quality and integration tests
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    timeout-minutes: 30
     env:
-      DATABASE_URL: postgresql://ci:ci@localhost:5432/hireme
+      DATABASE_URL: postgresql://ci:ci@localhost:5432/hireme?schema=public
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: ci
+          POSTGRES_PASSWORD: ci
+          POSTGRES_DB: hireme
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U ci -d hireme"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 10
     steps:
       - name: Check out source
         uses: actions/checkout@v4
       - name: Install pnpm
         uses: pnpm/action-setup@v4
         with:
-          version: 11.9.0
+          version: ${{ env.PNPM_VERSION }}
       - name: Install Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 22
+          node-version: ${{ env.NODE_VERSION }}
           cache: pnpm
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
-      - name: Generate Prisma client
-        run: pnpm db:generate
-      - name: Validate Prisma schema
-        run: pnpm prisma validate
+      - name: Generate and validate Prisma client
+        run: |
+          pnpm db:generate
+          pnpm prisma validate
+      - name: Apply migrations to isolated CI database
+        run: pnpm db:migrate:deploy
       - name: Check formatting
         run: pnpm format:check
       - name: Lint
@@ -47,9 +68,20 @@ jobs:
         run: pnpm test
       - name: Build production application
         run: pnpm build
+      - name: Run database-backed authentication integration tests
+        run: pnpm test:e2e:integration
+      - name: Upload browser test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-integration-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
 
-  matching-service:
-    name: Python matching service
+  matching-quality:
+    name: Python matching-service tests
     runs-on: ubuntu-latest
     timeout-minutes: 20
     defaults:
@@ -66,13 +98,147 @@ jobs:
           cache-dependency-path: |
             matching-service/requirements.txt
             matching-service/requirements-dev.txt
+            matching-service/pyproject.toml
       - name: Install dependencies
         run: pip install -r requirements-dev.txt
       - name: Check formatting
         run: ruff format --check .
       - name: Lint
         run: ruff check .
-      - name: Run tests
+      - name: Run matching tests
         env:
           PYTHONPATH: .
         run: pytest
+
+  preview-deployment:
+    name: Build and deploy cloud preview
+    needs: [web-quality, matching-quality]
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    outputs:
+      url: ${{ steps.deploy.outputs.url }}
+    environment:
+      name: preview
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Check out verified source
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Verify deployment secrets
+        run: |
+          test -n "$VERCEL_ORG_ID"
+          test -n "$VERCEL_PROJECT_ID"
+          test -n "$VERCEL_TOKEN"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Pull Vercel preview configuration
+        run: pnpm exec vercel pull --yes --environment=preview --token="$VERCEL_TOKEN"
+      - name: Build immutable preview artifact
+        run: pnpm exec vercel build --token="$VERCEL_TOKEN"
+      - name: Deploy preview artifact
+        id: deploy
+        shell: bash
+        run: |
+          url=$(pnpm exec vercel deploy --prebuilt --archive=tgz --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Preview deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
+
+  cloud-tests:
+    name: Test deployed preview in cloud
+    needs: preview-deployment
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      PLAYWRIGHT_BASE_URL: ${{ needs.preview-deployment.outputs.url }}
+      PLAYWRIGHT_BYPASS_SECRET: ${{ secrets.VERCEL_AUTOMATION_BYPASS_SECRET }}
+    steps:
+      - name: Check out source
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Run cloud smoke tests
+        run: pnpm test:e2e:cloud
+      - name: Upload cloud test report
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: playwright-cloud-report
+          path: |
+            playwright-report/
+            test-results/
+          retention-days: 14
+
+  production-deployment:
+    name: Promote tested artifact to production
+    needs: cloud-tests
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    concurrency:
+      group: hireme-production
+      cancel-in-progress: false
+    environment:
+      name: production
+      url: ${{ steps.deploy.outputs.url }}
+    env:
+      DATABASE_URL: ${{ secrets.DATABASE_URL }}
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+    steps:
+      - name: Check out tested source
+        uses: actions/checkout@v4
+      - name: Install pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: ${{ env.PNPM_VERSION }}
+      - name: Install Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: pnpm
+      - name: Verify production secrets
+        run: |
+          test -n "$DATABASE_URL"
+          test -n "$VERCEL_ORG_ID"
+          test -n "$VERCEL_PROJECT_ID"
+          test -n "$VERCEL_TOKEN"
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+      - name: Apply production migrations
+        run: pnpm db:migrate:deploy
+      - name: Pull Vercel production configuration
+        run: pnpm exec vercel pull --yes --environment=production --token="$VERCEL_TOKEN"
+      - name: Build production artifact
+        run: pnpm exec vercel build --prod --token="$VERCEL_TOKEN"
+      - name: Deploy production artifact
+        id: deploy
+        shell: bash
+        run: |
+          url=$(pnpm exec vercel deploy --prebuilt --prod --archive=tgz --token="$VERCEL_TOKEN")
+          echo "url=$url" >> "$GITHUB_OUTPUT"
+          echo "### Production deployment" >> "$GITHUB_STEP_SUMMARY"
+          echo "$url" >> "$GITHUB_STEP_SUMMARY"
