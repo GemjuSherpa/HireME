@@ -106,6 +106,7 @@ export async function PUT(
         poolSize: data.poolSize,
         targetShortlist: data.targetShortlist,
         shortlistResponseDays: data.shortlistResponseDays,
+        minMatchScore: data.minMatchScore,
         skills: { create: skillRecords },
         stages: {
           create: data.phases
@@ -137,7 +138,7 @@ export async function PUT(
       action: "JOB_DRAFT_UPDATED",
       entityType: "Job",
       entityId: jobId,
-      metadata: { matchesCleared: true },
+      metadata: { matchesCleared: true, minimumMatchScore: data.minMatchScore },
     },
   });
   return NextResponse.json({ job: { id: jobId } });

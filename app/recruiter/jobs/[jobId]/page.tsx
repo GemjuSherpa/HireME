@@ -22,7 +22,6 @@ export default async function JobPipeline({ params }: { params: Promise<{ jobId:
       stages: { orderBy: { position: "asc" }, include: { runs: true } },
       applications: {
         where: {
-          matchScore: { gte: 60 },
           status: { in: ["MATCHED", "INVITED", "ACTIVE", "FINALIST"] },
         },
         orderBy: { matchScore: "desc" },

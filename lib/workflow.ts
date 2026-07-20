@@ -71,48 +71,48 @@ export async function previewJobMatches(jobId: string, actorId: string) {
     },
   });
   const hybridResults = await rankWithMatchingService(candidates, job);
-  const ranked = candidates
-    .map((candidate) => {
-      const hybrid = hybridResults?.get(candidate.id);
-      return {
-        candidate,
-        eligibility: hybridResults
-          ? hybrid
-            ? { eligible: hybrid.eligible, checks: hybrid.filter_checks }
-            : { eligible: false, checks: { retrieval: "Outside hybrid retrieval top 1000" } }
-          : evaluateCandidateEligibility(candidate, job),
-        result:
-          hybrid ??
-          calculateMatch(
-            {
-              skills: candidate.skills.map((item) => ({
-                name: item.skill.name,
-                proficiency: item.proficiency,
-                verified: item.verified,
-              })),
-              desiredTitles: candidate.desiredTitles,
-              workModes: candidate.workModes,
-              yearsExperience: candidate.experiences.reduce(
-                (sum, item) =>
-                  sum +
-                  ((item.endDate ?? new Date()).getTime() - item.startDate.getTime()) /
-                    31_557_600_000,
-                0,
-              ),
-            },
-            {
-              title: job.title,
-              workMode: job.workMode,
-              experienceYears: experienceYears(job.experienceLevel),
-              skills: job.skills.map((item) => ({
-                name: item.skill.name,
-                weight: item.weight,
-                required: item.required,
-              })),
-            },
-          ),
-      };
-    })
+  const evaluated = candidates.map((candidate) => {
+    const hybrid = hybridResults?.get(candidate.id);
+    return {
+      candidate,
+      eligibility: hybridResults
+        ? hybrid
+          ? { eligible: hybrid.eligible, checks: hybrid.filter_checks }
+          : { eligible: false, checks: { retrieval: "Outside hybrid retrieval top 1000" } }
+        : evaluateCandidateEligibility(candidate, job),
+      result:
+        hybrid ??
+        calculateMatch(
+          {
+            skills: candidate.skills.map((item) => ({
+              name: item.skill.name,
+              proficiency: item.proficiency,
+              verified: item.verified,
+            })),
+            desiredTitles: candidate.desiredTitles,
+            workModes: candidate.workModes,
+            yearsExperience: candidate.experiences.reduce(
+              (sum, item) =>
+                sum +
+                ((item.endDate ?? new Date()).getTime() - item.startDate.getTime()) /
+                  31_557_600_000,
+              0,
+            ),
+          },
+          {
+            title: job.title,
+            workMode: job.workMode,
+            experienceYears: experienceYears(job.experienceLevel),
+            skills: job.skills.map((item) => ({
+              name: item.skill.name,
+              weight: item.weight,
+              required: item.required,
+            })),
+          },
+        ),
+    };
+  });
+  const ranked = evaluated
     .filter((item) => item.eligibility.eligible && item.result.score >= job.minMatchScore)
     .map((item) => ({
       ...item,
@@ -142,8 +142,14 @@ export async function previewJobMatches(jobId: string, actorId: string) {
       },
     });
   const summary = {
+    analysed: evaluated.length,
+    eligible: evaluated.filter((item) => item.eligibility.eligible).length,
+    belowThreshold: evaluated.filter(
+      (item) => item.eligibility.eligible && item.result.score < job.minMatchScore,
+    ).length,
     qualified: ranked.length,
     minimumMatchScore: job.minMatchScore,
+    thresholdPolicy: "recruiter-configured",
     shortlistOffers: Math.min(ranked.length, job.poolSize),
   };
   await prisma.auditLog.create({
