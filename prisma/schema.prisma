@@ -312,7 +312,7 @@ model Job {
   salaryMax             Int?
   sponsorship           Boolean          @default(false)
   poolSize              Int              @default(100)
-  minMatchScore         Float            @default(60)
+  minMatchScore         Float            @default(45)
   targetShortlist       Int              @default(10)
   shortlistResponseDays Int              @default(3)
   autoAdvance           Boolean          @default(false)

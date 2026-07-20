@@ -102,6 +102,7 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
       poolSize: Number(f.get("poolSize")),
       targetShortlist: Number(f.get("targetShortlist")),
       shortlistResponseDays: Number(f.get("shortlistResponseDays")),
+      minMatchScore: Number(f.get("minMatchScore")),
       skills: String(f.get("skills"))
         .split(",")
         .map((x) => x.trim())
@@ -202,6 +203,19 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
         <div className="form-grid">
           <Label text="Required skills" hint="Comma-separated" wide>
             <input name="skills" defaultValue="TypeScript, React, Python, System design" required />
+          </Label>
+          <Label
+            text="Minimum match score"
+            hint="45% is the recommended discovery threshold; hard eligibility rules still apply"
+          >
+            <input
+              name="minMatchScore"
+              type="number"
+              min="30"
+              max="80"
+              defaultValue="45"
+              required
+            />
           </Label>
           <Label text="Experience level">
             <select name="experienceLevel" defaultValue="SENIOR">

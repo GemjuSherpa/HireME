@@ -54,6 +54,7 @@ export async function POST(request: NextRequest) {
       poolSize: data.poolSize,
       targetShortlist: data.targetShortlist,
       shortlistResponseDays: data.shortlistResponseDays,
+      minMatchScore: data.minMatchScore,
       skills: { create: skillRecords },
       stages: {
         create: data.phases
@@ -94,6 +95,7 @@ export async function POST(request: NextRequest) {
           workMode: data.workMode,
         },
         shortlistResponseDays: data.shortlistResponseDays,
+        minimumMatchScore: data.minMatchScore,
       },
     },
   });

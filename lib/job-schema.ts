@@ -68,6 +68,7 @@ export const jobSchema = z
     poolSize: z.number().int().min(10).max(1000),
     targetShortlist: z.number().int().min(1).max(100),
     shortlistResponseDays: z.number().int().min(1).max(30),
+    minMatchScore: z.number().int().min(30).max(80),
     skills: z.array(z.string().min(1).max(80)).min(1).max(50),
     phases: z.array(phase).min(1).max(10),
   })

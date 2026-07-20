@@ -39,6 +39,7 @@ type EditableJob = {
   poolSize: number;
   targetShortlist: number;
   shortlistResponseDays: number;
+  minMatchScore: number;
   skills: string[];
   phases: Phase[];
 };
@@ -79,6 +80,7 @@ export function EditJobForm({ job }: { job: EditableJob }) {
       poolSize: Number(f.get("poolSize")),
       targetShortlist: Number(f.get("targetShortlist")),
       shortlistResponseDays: Number(f.get("shortlistResponseDays")),
+      minMatchScore: Number(f.get("minMatchScore")),
       skills: String(f.get("skills"))
         .split(",")
         .map((x) => x.trim())
@@ -168,6 +170,16 @@ export function EditJobForm({ job }: { job: EditableJob }) {
         <div className="form-grid">
           <Field label="Required skills" wide>
             <input name="skills" defaultValue={job.skills.join(", ")} required />
+          </Field>
+          <Field label="Minimum match score">
+            <input
+              name="minMatchScore"
+              type="number"
+              min="30"
+              max="80"
+              defaultValue={job.minMatchScore}
+              required
+            />
           </Field>
           <Field label="Experience">
             <Select
