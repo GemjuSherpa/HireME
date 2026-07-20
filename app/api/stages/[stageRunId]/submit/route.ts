@@ -4,6 +4,8 @@ import { prisma } from "@/lib/prisma";
 import { NextRequest, NextResponse } from "next/server";
 import type { AssessmentQuestion } from "@/lib/assessment-question-bank";
 
+export const maxDuration = 60;
+
 export async function POST(
   request: NextRequest,
   { params }: { params: Promise<{ stageRunId: string }> },

@@ -700,14 +700,14 @@ const finalReviewQuestions: QuestionDefinition[] = [
   question(
     "final-confidence",
     "Model risk",
-    "Were any model outputs low-confidence, inconsistent or disputed?",
+    "Did every automated stage produce a complete and internally consistent scoring record?",
     "SINGLE_SELECT",
-    ["No", "Yes—reviewed", "Yes—review required"],
+    ["Yes", "No—technical exception"],
   ),
   question(
-    "final-human",
+    "final-completeness",
     "Governance",
-    "Has an authorised human reviewed the complete evidence pack?",
+    "Is the complete evidence pack available for the autonomous finalist decision?",
     "SINGLE_SELECT",
     ["Yes", "No"],
   ),
@@ -728,7 +728,7 @@ const finalReviewQuestions: QuestionDefinition[] = [
   question(
     "final-override",
     "Governance",
-    "Does any automated recommendation require a documented human override?",
+    "List any technical exception that prevented autonomous scoring, or state none.",
     "LONG_TEXT",
   ),
   question(
@@ -748,7 +748,7 @@ const finalReviewQuestions: QuestionDefinition[] = [
     "Governance",
     "Confirm the decision is based on criteria rather than protected attributes or candidate similarity.",
     "SINGLE_SELECT",
-    ["Confirmed", "Cannot confirm—review required"],
+    ["Confirmed", "Cannot confirm—technical exception"],
   ),
   question(
     "final-feedback",

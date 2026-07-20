@@ -125,7 +125,7 @@ export async function PUT(
                 questionCount: item.questions.length,
                 sampleSize: item.sampleSize ?? (item.type === "COGNITIVE_APTITUDE" ? 15 : 10),
                 customised: true,
-                humanApprovalRequired: item.type === "FINAL_REVIEW",
+                humanApprovalRequired: false,
               },
             })),
         },
