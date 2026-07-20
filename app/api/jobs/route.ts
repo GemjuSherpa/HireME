@@ -70,6 +70,7 @@ export async function POST(request: NextRequest) {
               templateId: item.templateId,
               questions: item.questions,
               questionCount: item.questions.length,
+              sampleSize: item.sampleSize ?? (item.type === "COGNITIVE_APTITUDE" ? 15 : 10),
               customised: true,
               humanApprovalRequired: item.type === "FINAL_REVIEW",
             },

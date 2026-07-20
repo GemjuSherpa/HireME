@@ -5,6 +5,7 @@ export type AssessmentPhaseTemplate = {
     | "PRE_SCREEN"
     | "SKILL_VERIFICATION"
     | "BEHAVIOURAL"
+    | "COGNITIVE_APTITUDE"
     | "TECHNICAL"
     | "AI_INTERVIEW"
     | "FINAL_REVIEW";
@@ -34,28 +35,11 @@ export const assessmentTemplates: AssessmentPhaseTemplate[] = [
     ],
   },
   {
-    id: "skills",
-    name: "Skills verification",
-    type: "SKILL_VERIFICATION",
-    description: "Validates the required capabilities through consistent evidence.",
-    durationMinutes: 35,
-    passThreshold: 72,
-    recommended: true,
-    questionType: "Knowledge, evidence and practical",
-    questions: [
-      "Describe a recent example where you applied the role's primary skill.",
-      "Which tools or methods did you use, and why?",
-      "What measurable result did your work produce?",
-      "What would you change if you repeated the work?",
-      "Complete the role-specific knowledge check configured by the hiring team.",
-    ],
-  },
-  {
     id: "behavioural",
-    name: "Behavioural interview",
+    name: "Behavioural & skills interview",
     type: "BEHAVIOURAL",
-    description: "Structured STAR questions mapped to workplace competencies.",
-    durationMinutes: 35,
+    description: "Structured STAR and skills-evidence questions mapped to job criteria.",
+    durationMinutes: 45,
     passThreshold: 72,
     recommended: true,
     questionType: "Recorded or written STAR response",
@@ -66,6 +50,17 @@ export const assessmentTemplates: AssessmentPhaseTemplate[] = [
       "Tell us about a time priorities changed unexpectedly.",
       "Describe how you created an inclusive environment for others.",
     ],
+  },
+  {
+    id: "cognitive",
+    name: "Cognitive aptitude test",
+    type: "COGNITIVE_APTITUDE",
+    description: "A balanced 10–20 item test tailored to the role family and experience level.",
+    durationMinutes: 20,
+    passThreshold: 70,
+    recommended: true,
+    questionType: "Numerical, verbal, logical, attention and situational reasoning",
+    questions: [],
   },
   {
     id: "technical",

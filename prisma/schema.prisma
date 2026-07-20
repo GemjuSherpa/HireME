@@ -40,6 +40,7 @@ enum StageType {
   PRE_SCREEN
   SKILL_VERIFICATION
   BEHAVIOURAL
+  COGNITIVE_APTITUDE
   TECHNICAL
   AI_INTERVIEW
   FINAL_REVIEW
@@ -431,11 +432,30 @@ model StageRun {
   submission    StageSubmission?
   decisions     StageDecision[]
   invitation    Invitation?
+  videoSession  VideoInterviewSession?
   createdAt     DateTime         @default(now())
   updatedAt     DateTime         @updatedAt
 
   @@unique([applicationId, stageId, attempt])
   @@index([stageId, status])
+}
+
+model VideoInterviewSession {
+  id                    String   @id @default(cuid())
+  stageRunId            String   @unique
+  stageRun              StageRun @relation(fields: [stageRunId], references: [id], onDelete: Cascade)
+  status                String   @default("CONSENT_REQUIRED")
+  consentGrantedAt      DateTime?
+  alternativeRequested Boolean  @default(false)
+  provider              String?
+  providerSessionId     String?
+  recordingUrl          String?
+  transcript            Json     @default("[]")
+  evidence              Json     @default("[]")
+  startedAt             DateTime?
+  completedAt           DateTime?
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
 }
 
 model StageSubmission {

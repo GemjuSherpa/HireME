@@ -12,6 +12,7 @@ type Phase = {
   durationMinutes: number;
   completionDays: number;
   passThreshold: number;
+  sampleSize?: number;
   questions: string[];
 };
 
@@ -284,6 +285,7 @@ export function EditJobForm({ job }: { job: EditableJob }) {
                         "PRE_SCREEN",
                         "SKILL_VERIFICATION",
                         "BEHAVIOURAL",
+                        "COGNITIVE_APTITUDE",
                         "TECHNICAL",
                         "AI_INTERVIEW",
                         "FINAL_REVIEW",
@@ -333,6 +335,16 @@ export function EditJobForm({ job }: { job: EditableJob }) {
                       onChange={(e) =>
                         updatePhase(index, { passThreshold: Number(e.target.value) })
                       }
+                    />
+                  </Field>
+                  <Field label="Questions per candidate">
+                    <input
+                      type="number"
+                      min={phase.type === "COGNITIVE_APTITUDE" ? 10 : 9}
+                      max={phase.type === "COGNITIVE_APTITUDE" ? 20 : 10}
+                      value={phase.sampleSize ?? (phase.type === "COGNITIVE_APTITUDE" ? 15 : 10)}
+                      required
+                      onChange={(e) => updatePhase(index, { sampleSize: Number(e.target.value) })}
                     />
                   </Field>
                 </div>
@@ -394,6 +406,7 @@ export function EditJobForm({ job }: { job: EditableJob }) {
                 durationMinutes: 30,
                 completionDays: 7,
                 passThreshold: 70,
+                sampleSize: 10,
                 questions: [],
               },
             ])

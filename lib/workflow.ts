@@ -13,7 +13,12 @@ import { deliverOutboxEmail, shortlistEmail } from "@/lib/email";
 import { rankWithMatchingService } from "@/lib/hybrid-matching";
 import { evaluateCandidateEligibility } from "@/features/matching/domain/candidate-eligibility";
 import { ApplicationError } from "@/shared/errors/application-error";
-import { selectAssessmentQuestions, type AssessmentQuestion } from "@/lib/assessment-question-bank";
+import {
+  scoreCognitiveAnswers,
+  inferJobFamily,
+  selectAssessmentQuestions,
+  type AssessmentQuestion,
+} from "@/lib/assessment-question-bank";
 
 /** Launches a draft pipeline after refreshing matches and queues shortlist invitations by rank. */
 export async function launchJob(jobId: string, actorId: string) {
@@ -409,7 +414,7 @@ async function createQuestionSet(stageId: string): Promise<AssessmentQuestion[]>
       },
     },
   });
-  const config = stage.config as { questions?: string[] };
+  const config = stage.config as { questions?: string[]; sampleSize?: number };
   return selectAssessmentQuestions(
     stage.type,
     {
@@ -418,8 +423,15 @@ async function createQuestionSet(stageId: string): Promise<AssessmentQuestion[]>
       primarySkill: stage.job.skills[0]?.skill.name ?? "the role's primary skill",
       location: stage.job.location ?? "the advertised location",
       workMode: stage.job.workMode.toLowerCase(),
+      jobFamily: inferJobFamily(
+        stage.job.title,
+        stage.job.skills.map((item) => item.skill.name),
+      ),
+      experienceLevel: stage.job.experienceLevel,
     },
     config.questions ?? [],
+    undefined,
+    config.sampleSize,
   );
 }
 
@@ -443,10 +455,25 @@ export async function evaluateStageRun(stageRunId: string) {
   const numeric = Object.values(answers).filter(
     (value): value is number => typeof value === "number",
   );
-  const score = numeric.length
-    ? numeric.reduce((sum, value) => sum + value, 0) / numeric.length
-    : 75;
-  const confidence = numeric.length >= 3 ? 0.86 : 0.62;
+  const cognitiveResult =
+    run.stage.type === "COGNITIVE_APTITUDE"
+      ? scoreCognitiveAnswers(
+          run.questionSet as AssessmentQuestion[],
+          Object.fromEntries(Object.entries(answers).map(([id, value]) => [id, String(value)])),
+        )
+      : null;
+  const score = cognitiveResult
+    ? cognitiveResult.score
+    : numeric.length
+      ? numeric.reduce((sum, value) => sum + value, 0) / numeric.length
+      : 75;
+  const confidence = cognitiveResult
+    ? cognitiveResult.total >= 10
+      ? 0.86
+      : 0.6
+    : numeric.length >= 3
+      ? 0.86
+      : 0.62;
   const outcome: DecisionOutcome =
     confidence < 0.7
       ? DecisionOutcome.REVIEW
@@ -463,6 +490,7 @@ export async function evaluateStageRun(stageRunId: string) {
       rationale: {
         summary: "Evidence evaluated against the published stage rubric.",
         evidenceCount: numeric.length,
+        cognitive: cognitiveResult,
         threshold: run.stage.passThreshold,
         safeguards: ["No protected attributes used", "Human override available"],
       },

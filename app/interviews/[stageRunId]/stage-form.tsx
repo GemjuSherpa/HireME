@@ -79,6 +79,8 @@ export function StageForm({ stageRunId, questions }: StageFormProps) {
             </select>
           ) : question.answerType === "DATE" ? (
             <input name={question.id} type="date" required={question.required} />
+          ) : question.answerType === "NUMERIC" ? (
+            <input name={question.id} type="number" required={question.required} />
           ) : question.answerType === "SHORT_TEXT" ? (
             <input name={question.id} type="text" required={question.required} maxLength={500} />
           ) : (

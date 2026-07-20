@@ -417,6 +417,7 @@
 .assessment-form textarea,
 .assessment-form select,
 .assessment-form input[type="text"],
+.assessment-form input[type="number"],
 .assessment-form input[type="date"] {
   width: 100%;
   border: 1px solid #dce4df;

@@ -25,6 +25,7 @@ type Phase = {
   durationMinutes: number;
   completionDays: number;
   passThreshold: number;
+  sampleSize?: number;
   questions: string[];
 };
 
@@ -45,6 +46,7 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
           durationMinutes: t.durationMinutes,
           passThreshold: t.passThreshold,
           completionDays: 7,
+          sampleSize: t.type === "COGNITIVE_APTITUDE" ? 15 : 10,
           questions: [],
         })),
   );
@@ -63,6 +65,7 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
               durationMinutes: t.durationMinutes,
               passThreshold: t.passThreshold,
               completionDays: 7,
+              sampleSize: t.type === "COGNITIVE_APTITUDE" ? 15 : 10,
               questions: [],
             },
           ],
@@ -348,6 +351,17 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
                         value={phase.passThreshold}
                         onChange={(e) =>
                           updatePhase(phase.templateId, { passThreshold: Number(e.target.value) })
+                        }
+                      />
+                    </Label>
+                    <Label text="Questions per candidate">
+                      <input
+                        type="number"
+                        min={phase.type === "COGNITIVE_APTITUDE" ? 10 : 9}
+                        max={phase.type === "COGNITIVE_APTITUDE" ? 20 : 10}
+                        value={phase.sampleSize ?? (phase.type === "COGNITIVE_APTITUDE" ? 15 : 10)}
+                        onChange={(e) =>
+                          updatePhase(phase.templateId, { sampleSize: Number(e.target.value) })
                         }
                       />
                     </Label>

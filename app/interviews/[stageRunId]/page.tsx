@@ -5,6 +5,7 @@ import Link from "next/link";
 import { ArrowLeft, Clock3, LockKeyhole, ShieldCheck } from "lucide-react";
 import { StageForm } from "./stage-form";
 import { ensureStageRunQuestions } from "@/lib/workflow";
+import { VideoInterviewSetup } from "./video-interview-setup";
 export const dynamic = "force-dynamic";
 export default async function InterviewStage({
   params,
@@ -78,7 +79,11 @@ export default async function InterviewStage({
               excluded. You can request human review.
             </span>
           </div>
-          <StageForm stageRunId={run.id} questions={questions} />
+          {run.stage.type === "AI_INTERVIEW" ? (
+            <VideoInterviewSetup stageRunId={run.id} />
+          ) : (
+            <StageForm stageRunId={run.id} questions={questions} />
+          )}
         </section>
       </div>
     </main>
