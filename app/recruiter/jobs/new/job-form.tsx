@@ -45,7 +45,7 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
           durationMinutes: t.durationMinutes,
           passThreshold: t.passThreshold,
           completionDays: 7,
-          questions: [...t.questions],
+          questions: [],
         })),
   );
   function toggleTemplate(id: string) {
@@ -63,7 +63,7 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
               durationMinutes: t.durationMinutes,
               passThreshold: t.passThreshold,
               completionDays: 7,
-              questions: [...t.questions],
+              questions: [],
             },
           ],
     );
@@ -277,8 +277,8 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
         <BuilderTitle
           icon={<BookOpen />}
           step="4"
-          title="Interview phases, deadlines and questions"
-          text="Choose assessments, set completion deadlines, and customise candidate questions."
+          title="Interview phases and question banks"
+          text="Each phase randomly selects 9–10 questions from its own bank. Add optional recruiter questions to guarantee their inclusion."
         />
         <div className="template-picker">
           {assessmentTemplates.map((t) => (
@@ -352,7 +352,11 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
                       />
                     </Label>
                   </div>
-                  <h4>Questions shown to candidates</h4>
+                  <h4>Additional recruiter questions</h4>
+                  <p>
+                    These are added to this phase only and always included before the remaining
+                    places are randomly filled from its question bank.
+                  </p>
                   {phase.questions.map((q, i) => (
                     <div className="question-row" key={i}>
                       <span>{i + 1}</span>
@@ -383,12 +387,15 @@ export function JobForm({ initial }: { initial?: { id: string; phases?: Phase[] 
                   <button
                     type="button"
                     className="add-row"
+                    disabled={phase.questions.length >= 5}
                     onClick={() =>
                       updatePhase(phase.templateId, { questions: [...phase.questions, ""] })
                     }
                   >
                     <Plus />
-                    Add custom question
+                    {phase.questions.length >= 5
+                      ? "Five-question limit reached"
+                      : "Add recruiter question"}
                   </button>
                 </div>
               )}

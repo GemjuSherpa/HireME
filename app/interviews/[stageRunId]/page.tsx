@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import Link from "next/link";
 import { ArrowLeft, Clock3, LockKeyhole, ShieldCheck } from "lucide-react";
 import { StageForm } from "./stage-form";
+import { ensureStageRunQuestions } from "@/lib/workflow";
 export const dynamic = "force-dynamic";
 export default async function InterviewStage({
   params,
@@ -28,6 +29,7 @@ export default async function InterviewStage({
     include: { stage: true, application: { include: { job: { include: { company: true } } } } },
   });
   if (!run) notFound();
+  const questions = await ensureStageRunQuestions(run.id);
   return (
     <main className="stage-page">
       <header>
@@ -76,7 +78,7 @@ export default async function InterviewStage({
               excluded. You can request human review.
             </span>
           </div>
-          <StageForm stageRunId={run.id} />
+          <StageForm stageRunId={run.id} questions={questions} />
         </section>
       </div>
     </main>

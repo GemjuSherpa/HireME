@@ -427,6 +427,7 @@ model StageRun {
   startedAt     DateTime?
   submittedAt   DateTime?
   expiresAt     DateTime?
+  questionSet   Json             @default("[]")
   submission    StageSubmission?
   decisions     StageDecision[]
   invitation    Invitation?

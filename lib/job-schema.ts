@@ -15,7 +15,9 @@ const phase = z.object({
   durationMinutes: z.number().int().min(5).max(240),
   completionDays: z.number().int().min(1).max(30),
   passThreshold: z.number().min(0).max(100),
-  questions: z.array(z.string().min(3).max(1000)).min(1).max(30),
+  questions: z
+    .array(z.string().min(3).max(1000))
+    .max(5, "Add no more than five recruiter questions to a phase."),
 });
 export const jobSchema = z
   .object({

@@ -414,14 +414,21 @@
   font-size: 8px;
   color: #71817c;
 }
-.assessment-form textarea {
+.assessment-form textarea,
+.assessment-form select,
+.assessment-form input[type="text"],
+.assessment-form input[type="date"] {
   width: 100%;
-  min-height: 85px;
   border: 1px solid #dce4df;
   border-radius: 7px;
   padding: 10px;
   font: inherit;
   font-size: 10px;
+  background: white;
+  color: #18332d;
+}
+.assessment-form textarea {
+  min-height: 85px;
 }
 .assessment-form input[type="range"] {
   width: 100%;

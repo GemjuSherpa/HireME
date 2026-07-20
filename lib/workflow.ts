@@ -13,6 +13,7 @@ import { deliverOutboxEmail, shortlistEmail } from "@/lib/email";
 import { rankWithMatchingService } from "@/lib/hybrid-matching";
 import { evaluateCandidateEligibility } from "@/features/matching/domain/candidate-eligibility";
 import { ApplicationError } from "@/shared/errors/application-error";
+import { selectAssessmentQuestions, type AssessmentQuestion } from "@/lib/assessment-question-bank";
 
 /** Launches a draft pipeline after refreshing matches and queues shortlist invitations by rank. */
 export async function launchJob(jobId: string, actorId: string) {
@@ -344,12 +345,14 @@ export async function inviteToStage(
   stageName: string,
   completionDays = 7,
 ) {
+  const questionSet = await createQuestionSet(stageId);
   const stageRun = await prisma.stageRun.upsert({
     where: { applicationId_stageId_attempt: { applicationId, stageId, attempt: 1 } },
     update: {},
     create: {
       applicationId,
       stageId,
+      questionSet,
       status: StageRunStatus.INVITED,
       expiresAt: new Date(Date.now() + completionDays * 86_400_000),
     },
@@ -378,6 +381,46 @@ export async function inviteToStage(
     },
   });
   return stageRun;
+}
+
+/** Returns the immutable question snapshot for a stage run, backfilling legacy runs once. */
+export async function ensureStageRunQuestions(stageRunId: string): Promise<AssessmentQuestion[]> {
+  const run = await prisma.stageRun.findUniqueOrThrow({
+    where: { id: stageRunId },
+    select: { questionSet: true, stageId: true },
+  });
+  const existing = run.questionSet as AssessmentQuestion[];
+  if (Array.isArray(existing) && existing.length > 0) return existing;
+  const questionSet = await createQuestionSet(run.stageId);
+  await prisma.stageRun.update({ where: { id: stageRunId }, data: { questionSet } });
+  return questionSet;
+}
+
+/** Selects questions exclusively from the requested phase bank and its recruiter additions. */
+async function createQuestionSet(stageId: string): Promise<AssessmentQuestion[]> {
+  const stage = await prisma.hiringStage.findUniqueOrThrow({
+    where: { id: stageId },
+    include: {
+      job: {
+        include: {
+          company: true,
+          skills: { include: { skill: true }, orderBy: { weight: "desc" } },
+        },
+      },
+    },
+  });
+  const config = stage.config as { questions?: string[] };
+  return selectAssessmentQuestions(
+    stage.type,
+    {
+      jobTitle: stage.job.title,
+      companyName: stage.job.company.name,
+      primarySkill: stage.job.skills[0]?.skill.name ?? "the role's primary skill",
+      location: stage.job.location ?? "the advertised location",
+      workMode: stage.job.workMode.toLowerCase(),
+    },
+    config.questions ?? [],
+  );
 }
 
 /** Evaluates submitted evidence, records the model decision, and advances the workflow. */

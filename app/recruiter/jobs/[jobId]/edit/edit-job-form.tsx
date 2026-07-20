@@ -252,8 +252,11 @@ export function EditJobForm({ job }: { job: EditableJob }) {
         </label>
       </section>
       <section className="builder-section assessment-builder">
-        <h2>Edit interview phases and questions</h2>
-        <p>Changes are applied only while this pipeline remains a draft.</p>
+        <h2>Edit interview phases and question banks</h2>
+        <p>
+          Each phase draws 9–10 questions from its own bank. Additional questions below are always
+          included for this pipeline. Changes apply only while it remains a draft.
+        </p>
         <div className="selected-phases">
           {phases.map((phase, index) => (
             <article key={`${phase.templateId}-${index}`}>
@@ -333,7 +336,7 @@ export function EditJobForm({ job }: { job: EditableJob }) {
                     />
                   </Field>
                 </div>
-                <h4>Candidate questions</h4>
+                <h4>Additional recruiter questions</h4>
                 {phase.questions.map((question, qIndex) => (
                   <div className="question-row" key={qIndex}>
                     <span>{qIndex + 1}</span>
@@ -365,10 +368,13 @@ export function EditJobForm({ job }: { job: EditableJob }) {
                 <button
                   type="button"
                   className="add-row"
+                  disabled={phase.questions.length >= 5}
                   onClick={() => updatePhase(index, { questions: [...phase.questions, ""] })}
                 >
                   <Plus />
-                  Add question
+                  {phase.questions.length >= 5
+                    ? "Five-question limit reached"
+                    : "Add recruiter question"}
                 </button>
               </div>
             </article>
@@ -388,7 +394,7 @@ export function EditJobForm({ job }: { job: EditableJob }) {
                 durationMinutes: 30,
                 completionDays: 7,
                 passThreshold: 70,
-                questions: ["Add the first candidate question here."],
+                questions: [],
               },
             ])
           }
