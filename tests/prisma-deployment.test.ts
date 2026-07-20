@@ -11,8 +11,6 @@ describe("Prisma deployment configuration", () => {
   it("packages the query engine required by Vercel Functions", () => {
     const schema = readFileSync(join(process.cwd(), "prisma/schema.prisma"), "utf8");
 
-    expect(schema).toMatch(
-      /binaryTargets\s*=\s*\[\s*"native"\s*,\s*"rhel-openssl-3\.0\.x"\s*\]/,
-    );
+    expect(schema).toMatch(/binaryTargets\s*=\s*\[\s*"native"\s*,\s*"rhel-openssl-3\.0\.x"\s*\]/);
   });
 });
