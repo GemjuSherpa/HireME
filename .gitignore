@@ -16,4 +16,5 @@ __pycache__
 .venv
 matching-service/.venv
 matching-service/data/*.jsonl
+matching-service/artifacts/hireme-minilm-*/
 storage/resumes

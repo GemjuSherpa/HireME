@@ -1,0 +1,14 @@
+{
+  "model": "SentenceTransformer bi-encoder",
+  "base_model": "sentence-transformers/all-MiniLM-L6-v2",
+  "version": "synthetic-v2",
+  "train_records": 40000,
+  "test_records": 10000,
+  "train_jobs": 400,
+  "test_jobs": 100,
+  "epochs": 1,
+  "synthetic_only": true,
+  "production_validated": false,
+  "job_profile_held_out_pearson_cosine": 0.9496230559563352,
+  "job_profile_held_out_spearman_cosine": 0.9474553798009459
+}

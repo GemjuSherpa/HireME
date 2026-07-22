@@ -1,4 +1,4 @@
-"""Generate reproducible synthetic ranking examples for local model development."""
+"""Generate reproducible, diverse synthetic job-profile ranking examples."""
 
 from __future__ import annotations
 
@@ -9,153 +9,185 @@ from pathlib import Path
 
 from faker import Faker
 
-ROLES = {
-    "Senior Product Engineer": ["TypeScript", "React", "Python", "System design", "AWS", "Testing"],
-    "Machine Learning Engineer": [
-        "Python",
-        "Machine learning",
-        "PyTorch",
-        "Data science",
-        "AWS",
-        "SQL",
-    ],
-    "Product Designer": [
-        "Figma",
-        "User research",
-        "Product design",
-        "Accessibility",
-        "Design systems",
-    ],
-    "Backend Engineer": ["Python", "FastAPI", "PostgreSQL", "System design", "Docker", "AWS"],
-    "Data Analyst": ["SQL", "Python", "Tableau", "Statistics", "Data visualisation"],
-}
-EDUCATION = ["CERTIFICATE", "DIPLOMA", "BACHELOR", "MASTER", "PHD"]
-LOCATIONS = [
+from .profession_catalog import PROFESSIONS, Profession
+
+LOCATIONS = (
     "Melbourne, Australia",
     "Sydney, Australia",
     "Brisbane, Australia",
     "Perth, Australia",
     "Adelaide, Australia",
-]
+    "Hobart, Australia",
+    "Darwin, Australia",
+    "Regional Victoria, Australia",
+    "Regional Queensland, Australia",
+)
+WORK_RIGHTS = ("AU_UNRESTRICTED", "AU_VALID_VISA", "REQUIRES_SPONSORSHIP", "OTHER")
 
 
-def generate_dataset(count: int = 5000, jobs: int = 50, seed: int = 20260717) -> list[dict]:
+def generate_dataset(count: int = 50_000, jobs: int = 500, seed: int = 20260721) -> list[dict]:
+    """Returns labelled examples split across profession families and realistic mismatch types."""
+
     Faker.seed(seed)
-    random.seed(seed)
+    rng = random.Random(seed)
     fake = Faker("en_AU")
-    records = []
+    records: list[dict] = []
+    per_job = max(10, count // jobs)
     for job_index in range(jobs):
-        title = random.choice(list(ROLES))
-        role_skills = ROLES[title]
-        location = random.choice(LOCATIONS)
-        work_mode = random.choice(["REMOTE", "HYBRID", "ONSITE"])
-        required = random.sample(role_skills, k=min(3, len(role_skills)))
-        job = {
-            "id": f"synthetic-job-{job_index}",
-            "title": title,
-            "description": (
-                f"Deliver high-quality {title.lower()} outcomes in a collaborative team."
-            ),
-            "responsibilities": "Design, deliver, test and communicate measurable outcomes.",
-            "ideal_candidate": (
-                f"Evidence-led professional with practical {', '.join(required)} experience."
-            ),
-            "work_mode": work_mode,
-            "location": location,
-            "work_rights": "AU_VALID_VISA",
-            "required_education": random.choice(["NONE", "DIPLOMA", "BACHELOR"]),
-            "experience_years": random.choice([1, 3, 5, 7]),
-            "salary_max": random.choice([110000, 140000, 170000]),
-            "skills": [
-                {"name": name, "weight": 3 if name in required else 1, "required": name in required}
-                for name in role_skills
-            ],
-        }
-        per_job = max(10, count // jobs)
+        role = PROFESSIONS[job_index % len(PROFESSIONS)]
+        job = make_job(role, job_index, rng)
         for candidate_index in range(per_job):
-            fit = random.betavariate(2, 2)
-            matched = random.sample(
-                role_skills, k=max(1, min(len(role_skills), round(fit * len(role_skills))))
-            )
-            noise_skills = random.sample(
-                [s for values in ROLES.values() for s in values if s not in matched],
-                k=random.randint(0, 3),
-            )
-            years = max(
-                0, round(job["experience_years"] * (0.45 + fit) + random.uniform(-1.5, 2), 1)
-            )
-            candidate = {
-                "id": f"synthetic-{job_index}-{candidate_index}",
-                "name": fake.name(),
-                "email": fake.unique.safe_email(),
-                "summary": fake.paragraph(nb_sentences=3),
-                "desired_titles": [title if random.random() < fit else random.choice(list(ROLES))],
-                "skills": [
-                    {
-                        "name": skill,
-                        "proficiency": random.randint(2, 5),
-                        "verified": random.random() < 0.45,
-                    }
-                    for skill in matched + noise_skills
-                ],
-                "years_experience": years,
-                "work_modes": random.sample(["REMOTE", "HYBRID", "ONSITE"], k=random.randint(1, 3)),
-                "location": location if random.random() < 0.72 else random.choice(LOCATIONS),
-                "work_rights": random.choice(
-                    ["AU_UNRESTRICTED", "AU_VALID_VISA", "REQUIRES_SPONSORSHIP", "OTHER"]
-                ),
-                "education_level": random.choice(EDUCATION),
-                "expected_salary_min": random.choice([90000, 110000, 130000, 150000]),
-                "available": random.random() > 0.05,
-                "projects": [fake.catch_phrase() for _ in range(random.randint(0, 3))],
-            }
-            skill_coverage = len(set(matched) & set(required)) / max(len(required), 1)
-            relevance = (
-                skill_coverage * 0.48
-                + min(years / max(job["experience_years"], 1), 1) * 0.20
-                + float(title in candidate["desired_titles"]) * 0.12
-                + float(work_mode in candidate["work_modes"]) * 0.08
-                + float(candidate["location"] == location or work_mode == "REMOTE") * 0.07
-                + random.uniform(-0.06, 0.06)
-            )
-            label = (
-                4
-                if relevance >= 0.83
-                else 3
-                if relevance >= 0.68
-                else 2
-                if relevance >= 0.50
-                else 1
-                if relevance >= 0.32
-                else 0
-            )
+            fit = rng.betavariate(1.8, 1.8)
+            candidate = make_candidate(role, job, job_index, candidate_index, fit, rng, fake)
+            relevance = calculate_synthetic_relevance(candidate, job, rng)
             records.append(
                 {
                     "job": job,
                     "candidate": candidate,
-                    "label": label,
+                    "label": relevance_label(relevance),
+                    "relevance": round(relevance, 4),
                     "synthetic": True,
-                    "generator": "Faker 37.12.0",
+                    "generator": "Faker (MIT)",
                     "seed": seed,
+                    "schema_version": "diverse-professions-v2",
                 }
             )
+    rng.shuffle(records)
     return records[:count]
 
 
-def main():
+def make_job(role: Profession, index: int, rng: random.Random) -> dict:
+    """Creates a job advert with explicit requirements from one profession definition."""
+
+    required = rng.sample(list(role.skills), k=min(3, len(role.skills)))
+    work_mode = rng.choice(role.work_modes)
+    location = rng.choice(LOCATIONS)
+    return {
+        "id": f"synthetic-job-{index}",
+        "family": role.family,
+        "title": role.title,
+        "description": (
+            f"Join our team as a {role.title}. Deliver safe, reliable and measurable outcomes."
+        ),
+        "responsibilities": "; ".join(role.responsibilities),
+        "ideal_candidate": (
+            f"Practical experience in {', '.join(required)} with evidence of dependable work."
+        ),
+        "work_mode": work_mode,
+        "location": location,
+        "work_rights": "AU_VALID_VISA",
+        "required_education": rng.choice(role.education),
+        "experience_years": rng.choice((0, 1, 2, 3, 5, 7)),
+        "salary_max": rng.choice((60_000, 75_000, 90_000, 110_000, 140_000, 170_000)),
+        "skills": [
+            {"name": skill, "weight": 3 if skill in required else 1, "required": skill in required}
+            for skill in role.skills
+        ],
+    }
+
+
+def make_candidate(
+    role: Profession,
+    job: dict,
+    job_index: int,
+    candidate_index: int,
+    fit: float,
+    rng: random.Random,
+    fake: Faker,
+) -> dict:
+    """Creates a candidate with controlled positive evidence and cross-profession hard negatives."""
+
+    matched_count = max(0, min(len(role.skills), round(fit * len(role.skills))))
+    matched = rng.sample(list(role.skills), k=matched_count)
+    other_role = rng.choice([item for item in PROFESSIONS if item.family != role.family])
+    noise_count = rng.randint(0, min(3, len(other_role.skills)))
+    skills = list(dict.fromkeys([*matched, *rng.sample(list(other_role.skills), k=noise_count)]))
+    desired_role = role if rng.random() < fit else other_role
+    years = max(0, round(job["experience_years"] * (0.35 + fit) + rng.uniform(-1, 2), 1))
+    achievement = rng.choice(role.responsibilities)
+    summary = (
+        f"{desired_role.title} with {years:g} years of experience. "
+        f"Skilled in {', '.join(skills[:4]) or 'entry-level workplace practices'}. "
+        f"Recent work included: {achievement.lower()}."
+    )
+    return {
+        "id": f"synthetic-{job_index}-{candidate_index}",
+        "name": fake.name(),
+        "email": fake.unique.safe_email(),
+        "summary": summary,
+        "desired_titles": [desired_role.title],
+        "skills": [
+            {"name": skill, "proficiency": rng.randint(1, 5), "verified": rng.random() < 0.45}
+            for skill in skills
+        ],
+        "years_experience": years,
+        "work_modes": rng.sample(list(role.work_modes), k=rng.randint(1, len(role.work_modes))),
+        "location": job["location"] if rng.random() < 0.7 else rng.choice(LOCATIONS),
+        "work_rights": rng.choices(WORK_RIGHTS, weights=(65, 20, 10, 5), k=1)[0],
+        "education_level": rng.choice(role.education),
+        "expected_salary_min": max(
+            35_000, job["salary_max"] - rng.choice((10_000, 20_000, 35_000))
+        ),
+        "available": rng.random() > 0.04,
+        "projects": [f"{achievement} for {fake.company()}"],
+    }
+
+
+def calculate_synthetic_relevance(candidate: dict, job: dict, rng: random.Random) -> float:
+    """Produces a transparent training label from job-related attributes only."""
+
+    required = {item["name"] for item in job["skills"] if item["required"]}
+    candidate_skills = {item["name"] for item in candidate["skills"]}
+    coverage = len(required & candidate_skills) / max(len(required), 1)
+    value = (
+        coverage * 0.50
+        + min(candidate["years_experience"] / max(job["experience_years"], 1), 1) * 0.16
+        + float(job["title"] in candidate["desired_titles"]) * 0.14
+        + float(job["work_mode"] in candidate["work_modes"]) * 0.07
+        + float(candidate["location"] == job["location"] or job["work_mode"] == "REMOTE") * 0.06
+        + float(candidate["work_rights"] in {"AU_UNRESTRICTED", "AU_VALID_VISA"}) * 0.05
+        + rng.uniform(-0.04, 0.04)
+    )
+    return max(0.0, min(1.0, value))
+
+
+def relevance_label(value: float) -> int:
+    """Maps a continuous synthetic relevance value to a LambdaMART grade."""
+
+    return (
+        4
+        if value >= 0.82
+        else 3
+        if value >= 0.66
+        else 2
+        if value >= 0.48
+        else 1
+        if value >= 0.3
+        else 0
+    )
+
+
+def main() -> None:
     parser = argparse.ArgumentParser()
-    parser.add_argument("--count", type=int, default=5000)
-    parser.add_argument("--jobs", type=int, default=50)
-    parser.add_argument("--seed", type=int, default=20260717)
-    parser.add_argument("--output", default="data/synthetic-ranking.jsonl")
+    parser.add_argument("--count", type=int, default=50_000)
+    parser.add_argument("--jobs", type=int, default=500)
+    parser.add_argument("--seed", type=int, default=20260721)
+    parser.add_argument("--output", default="data/synthetic-ranking-v2.jsonl")
     args = parser.parse_args()
     path = Path(args.output)
     path.parent.mkdir(parents=True, exist_ok=True)
     records = generate_dataset(args.count, args.jobs, args.seed)
     path.write_text("\n".join(json.dumps(record) for record in records) + "\n")
+    families = sorted({record["job"]["family"] for record in records})
     print(
         json.dumps(
-            {"records": len(records), "jobs": args.jobs, "seed": args.seed, "output": str(path)}
+            {
+                "records": len(records),
+                "jobs": args.jobs,
+                "families": len(families),
+                "seed": args.seed,
+                "output": str(path),
+            }
         )
     )
 

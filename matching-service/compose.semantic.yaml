@@ -1,0 +1,12 @@
+services:
+  semantic-matcher:
+    build:
+      context: .
+      dockerfile: Dockerfile.semantic
+    environment:
+      SEMANTIC_MODEL_PATH: /models/hireme-minilm-v1
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./artifacts/hireme-minilm-v1:/models/hireme-minilm-v1:ro
+    restart: unless-stopped

@@ -94,7 +94,7 @@ export async function rankWithMatchingService(candidates: CandidateInput[], job:
     limit: Math.min(candidates.length, 1000),
   };
   try {
-    const response = await fetch(`${url.replace(/\/$/, "")}/v2/matches/rank`, {
+    const response = await fetch(`${url.replace(/\/$/, "")}/v3/matches/rank`, {
       method: "POST",
       headers: { "content-type": "application/json" },
       body: JSON.stringify(payload),

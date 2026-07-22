@@ -1,6 +1,7 @@
+import numpy as np
 from fastapi.testclient import TestClient
 
-from app.main import app
+from app.main import app, json_safe
 
 client = TestClient(app)
 job = {
@@ -56,6 +57,16 @@ def test_ranker_orders_stronger_candidate_first_and_explains():
     assert result["results"][0]["model_version"]
 
 
+def test_v3_ranker_falls_back_cleanly_without_semantic_artifact():
+    response = client.post(
+        "/v3/matches/rank", json={"job": job, "candidates": [weak, strong], "limit": 100}
+    )
+    assert response.status_code == 200
+    result = response.json()
+    assert result["semantic_available"] is False
+    assert result["results"][0]["candidate_id"] == "strong"
+
+
 def test_skill_graph_recognises_related_skill_evidence():
     result = client.post("/v1/matches/score", json={"candidate": strong, "job": job}).json()
     assert any(
@@ -68,3 +79,14 @@ def test_invalid_proficiency_is_rejected():
     assert (
         client.post("/v1/matches/score", json={"candidate": invalid, "job": job}).status_code == 422
     )
+
+
+def test_json_safe_converts_nested_numpy_scalars():
+    result = json_safe(
+        {
+            "eligible": np.bool_(True),
+            "scores": [np.float64(91.5), np.int64(2)],
+        }
+    )
+
+    assert result == {"eligible": True, "scores": [91.5, 2]}

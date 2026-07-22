@@ -24,6 +24,9 @@
     "db:bootstrap-diverse": "tsx scripts/bootstrap-diverse-workers.ts",
     "matching:generate": "PYTHONPATH=matching-service matching-service/.venv/bin/python -m app.synthetic --count 5000 --jobs 50 --seed 20260717 --output matching-service/data/synthetic-ranking.jsonl",
     "matching:train": "PYTHONPATH=matching-service matching-service/.venv/bin/python -m app.train --input matching-service/data/synthetic-ranking.jsonl --output matching-service/artifacts/lambdamart.joblib",
+    "matching:semantic:generate": "cd matching-service && PYTHONPATH=. .venv/bin/python -m app.synthetic --count 50000 --jobs 500 --seed 20260721 --output data/synthetic-ranking-v2.jsonl",
+    "matching:semantic:train": "cd matching-service && PYTHONPATH=. .venv/bin/python -m app.train_semantic --input data/synthetic-ranking-v2.jsonl --output artifacts/hireme-minilm-v1 --epochs 1 --batch-size 32",
+    "matching:semantic:serve": "cd matching-service && SEMANTIC_MODEL_PATH=artifacts/hireme-minilm-v1 PYTHONPATH=. .venv/bin/uvicorn app.main:app --host 0.0.0.0 --port 8000",
     "matching:test": "cd matching-service && PYTHONPATH=. .venv/bin/pytest",
     "matching:format": "matching-service/.venv/bin/ruff format matching-service",
     "matching:lint": "matching-service/.venv/bin/ruff check matching-service"
