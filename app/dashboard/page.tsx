@@ -298,7 +298,9 @@ export default async function CandidateDashboard() {
                             ? "Unsuccessful"
                             : run?.status === "EXPIRED"
                               ? "Expired"
-                              : (run?.status ?? "Locked")}
+                              : run?.status === "NEEDS_REVIEW"
+                                ? "Evaluation delayed"
+                                : (run?.status ?? "Locked")}
                         </small>
                       </span>
                     </div>

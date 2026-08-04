@@ -4,7 +4,7 @@ const options = [
   {
     type: "AI_ASSESSMENT",
     title: "AI-assisted assessment",
-    text: "Allow structured model evaluation with explanations and human review.",
+    text: "Allow autonomous structured evaluation with evidence-based explanations.",
   },
   {
     type: "VIDEO_RECORDING",

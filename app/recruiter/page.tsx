@@ -230,9 +230,9 @@ export default async function RecruiterDashboard() {
               <Clock3 />
             </span>
             <div>
-              <small>NEEDS REVIEW</small>
+              <small>TECHNICAL EXCEPTIONS</small>
               <strong>{reviewCount}</strong>
-              <em>AI never decides silently</em>
+              <em>Failed evaluations requiring support</em>
             </div>
           </article>
           <article>

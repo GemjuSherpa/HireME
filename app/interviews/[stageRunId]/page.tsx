@@ -75,8 +75,9 @@ export default async function InterviewStage({
           <div className="rubric-note">
             <strong>How this is evaluated</strong>
             <span>
-              Relevance, evidence quality and structured judgement. Protected attributes are
-              excluded. You can request human review.
+              Relevance, evidence quality and the published rubric. Protected attributes are
+              excluded. Passing candidates advance automatically; technical failures are isolated
+              for support.
             </span>
           </div>
           {run.stage.type === "AI_INTERVIEW" ? (

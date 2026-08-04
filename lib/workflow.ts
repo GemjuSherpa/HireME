@@ -19,6 +19,7 @@ import {
   selectAssessmentQuestions,
   type AssessmentQuestion,
 } from "@/lib/assessment-question-bank";
+import { evaluateWrittenAssessment } from "@/lib/assessment-evaluator";
 
 /** Launches a draft pipeline after refreshing matches and queues shortlist invitations by rank. */
 export async function launchJob(jobId: string, actorId: string) {
@@ -441,7 +442,7 @@ async function createQuestionSet(stageId: string): Promise<AssessmentQuestion[]>
   );
 }
 
-/** Evaluates submitted evidence, records the model decision, and advances the workflow. */
+/** Autonomously evaluates submitted evidence and advances or closes the application. */
 export async function evaluateStageRun(stageRunId: string) {
   const run = await prisma.stageRun.findUniqueOrThrow({
     where: { id: stageRunId },
@@ -451,41 +452,70 @@ export async function evaluateStageRun(stageRunId: string) {
       application: {
         include: {
           candidate: { include: { user: true } },
-          job: { include: { stages: { orderBy: { position: "asc" } } } },
+          job: {
+            include: {
+              stages: { orderBy: { position: "asc" } },
+              skills: { include: { skill: true } },
+            },
+          },
         },
       },
     },
   });
   if (!run.submission) throw new Error("Submission required");
   const answers = run.submission.answers as Record<string, unknown>;
-  const numeric = Object.values(answers).filter(
-    (value): value is number => typeof value === "number",
+  await prisma.stageRun.update({
+    where: { id: stageRunId },
+    data: { status: StageRunStatus.EVALUATING },
+  });
+  const questions = run.questionSet as AssessmentQuestion[];
+  const stringAnswers = Object.fromEntries(
+    Object.entries(answers).map(([id, value]) => [id, String(value)]),
   );
   const cognitiveResult =
     run.stage.type === "COGNITIVE_APTITUDE"
-      ? scoreCognitiveAnswers(
-          run.questionSet as AssessmentQuestion[],
-          Object.fromEntries(Object.entries(answers).map(([id, value]) => [id, String(value)])),
-        )
+      ? scoreCognitiveAnswers(questions, stringAnswers)
       : null;
-  const score = cognitiveResult
-    ? cognitiveResult.score
-    : numeric.length
-      ? numeric.reduce((sum, value) => sum + value, 0) / numeric.length
-      : 75;
+  let writtenEvaluation: Awaited<ReturnType<typeof evaluateWrittenAssessment>> | null = null;
+  try {
+    if (!cognitiveResult)
+      writtenEvaluation = await evaluateWrittenAssessment({
+        stageType: run.stage.type,
+        stageName: run.stage.name,
+        jobTitle: run.application.job.title,
+        jobDescription: run.application.job.description,
+        responsibilities: run.application.job.responsibilities,
+        idealCandidate: run.application.job.idealCandidate,
+        requiredSkills: run.application.job.skills
+          .filter((item) => item.required)
+          .map((item) => item.skill.name),
+        questions,
+        answers: stringAnswers,
+        safetyIdentifier: run.application.candidate.user.id,
+      });
+  } catch (error) {
+    const message = error instanceof Error ? error.message : "Unknown assessment service failure";
+    const decision = await prisma.stageDecision.create({
+      data: {
+        stageRunId,
+        source: DecisionSource.AI,
+        outcome: DecisionOutcome.REVIEW,
+        rationale: { summary: "Automated evaluation could not complete.", technicalError: message },
+        policyVersion: "hireme-autonomous-assessment-v2",
+      },
+    });
+    await prisma.stageRun.update({
+      where: { id: stageRunId },
+      data: { status: StageRunStatus.NEEDS_REVIEW },
+    });
+    return decision;
+  }
+  const score = cognitiveResult?.score ?? writtenEvaluation!.score;
   const confidence = cognitiveResult
-    ? cognitiveResult.total >= 10
-      ? 0.86
-      : 0.6
-    : numeric.length >= 3
-      ? 0.86
-      : 0.62;
+    ? Math.min(0.98, 0.72 + cognitiveResult.total * 0.015)
+    : writtenEvaluation!.confidence;
   const outcome: DecisionOutcome =
-    confidence < 0.7
-      ? DecisionOutcome.REVIEW
-      : score >= run.stage.passThreshold
-        ? DecisionOutcome.ADVANCE
-        : DecisionOutcome.REJECT;
+    score >= run.stage.passThreshold ? DecisionOutcome.ADVANCE : DecisionOutcome.REJECT;
   const decision = await prisma.stageDecision.create({
     data: {
       stageRunId,
@@ -494,13 +524,20 @@ export async function evaluateStageRun(stageRunId: string) {
       score,
       confidence,
       rationale: {
-        summary: "Evidence evaluated against the published stage rubric.",
-        evidenceCount: numeric.length,
+        summary:
+          writtenEvaluation?.summary ??
+          "Objective answers scored against the published answer key.",
+        questionScores: writtenEvaluation?.questionScores,
+        strengths: writtenEvaluation?.strengths,
+        developmentAreas: writtenEvaluation?.developmentAreas,
+        integrityFlags: writtenEvaluation?.integrityFlags,
         cognitive: cognitiveResult,
         threshold: run.stage.passThreshold,
-        safeguards: ["No protected attributes used", "Human override available"],
+        safeguards: ["Protected attributes excluded", "Job-related evidence only"],
+        provider: writtenEvaluation?.provider ?? "DETERMINISTIC",
+        model: writtenEvaluation?.model,
       },
-      policyVersion: "hireme-selection-v1",
+      policyVersion: writtenEvaluation?.policyVersion ?? "hireme-objective-scoring-v2",
     },
   });
   const status =
@@ -511,7 +548,9 @@ export async function evaluateStageRun(stageRunId: string) {
         : StageRunStatus.NEEDS_REVIEW;
   await prisma.stageRun.update({ where: { id: stageRunId }, data: { status } });
   if (outcome === DecisionOutcome.ADVANCE) {
-    const next = run.application.job.stages.find((stage) => stage.position > run.stage.position);
+    const next = run.application.job.stages.find(
+      (stage) => stage.position > run.stage.position && stage.type !== "FINAL_REVIEW",
+    );
     if (next) {
       await prisma.application.update({
         where: { id: run.applicationId },
@@ -550,6 +589,38 @@ export async function evaluateStageRun(stageRunId: string) {
     });
   }
   return decision;
+}
+
+/** Retries transient autonomous-assessment failures before escalating them to technical support. */
+export async function retryTechnicalAssessmentExceptions() {
+  const retryBefore = new Date(Date.now() - 2 * 60 * 1000);
+  const failedRuns = await prisma.stageRun.findMany({
+    where: { status: StageRunStatus.NEEDS_REVIEW, updatedAt: { lte: retryBefore } },
+    include: {
+      decisions: {
+        where: { outcome: DecisionOutcome.REVIEW },
+        orderBy: { createdAt: "desc" },
+        take: 3,
+      },
+    },
+    take: 10,
+  });
+  let retried = 0;
+  let exhausted = 0;
+  for (const run of failedRuns) {
+    if (run.decisions.length >= 3) {
+      exhausted += 1;
+      continue;
+    }
+    const claimed = await prisma.stageRun.updateMany({
+      where: { id: run.id, status: StageRunStatus.NEEDS_REVIEW },
+      data: { status: StageRunStatus.EVALUATING },
+    });
+    if (!claimed.count) continue;
+    await evaluateStageRun(run.id);
+    retried += 1;
+  }
+  return { discovered: failedRuns.length, retried, exhausted };
 }
 
 function experienceYears(level: string) {
